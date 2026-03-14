@@ -1,4 +1,3 @@
-version: '3.8'
 services:
   postgres:
     image: postgres:15
@@ -7,7 +6,7 @@ services:
       POSTGRES_PASSWORD: password
       POSTGRES_DB: agentic_draft
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   redis:
     image: redis:7

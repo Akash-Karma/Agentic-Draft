@@ -1,5 +1,6 @@
 {
   "compilerOptions": {
+    "types": ["node"],
     "target": "ES2022",
     "module": "CommonJS",
     "moduleResolution": "node",
@@ -11,6 +12,9 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "prisma.config.ts"
+  ],
   "exclude": ["node_modules"]
 }
