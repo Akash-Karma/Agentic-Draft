@@ -4,6 +4,7 @@ import DraftForm from "@/components/DraftForm";
 import LoginScreen from "@/components/LoginScreen";
 import { api, Project, getApiKey } from "@/lib/api";
 import { Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
+import Link from "next/link";
 
 export default function Dashboard() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -54,9 +55,14 @@ export default function Dashboard() {
 
   return (
     <main className="max-w-4xl mx-auto p-8 space-y-8">
-      <header>
-        <h1 className="text-3xl font-bold text-gray-900">Agentic Draft Dashboard</h1>
-        <p className="text-gray-500">Transform your notes into professional content using AI agents.</p>
+      <header className="flex justify-between items-start">
+         <div>
+           <h1 className="text-3xl font-bold text-gray-900">Agentic Draft Dashboard</h1>
+           <p className="text-gray-500">Transform your notes into professional content using AI agents.</p>
+         </div>
+         <Link href="/settings" className="text-sm text-blue-600 hover:underline">
+           Preferences
+         </Link>
       </header>
 
       <DraftForm onProjectCreated={addProjectToList} />

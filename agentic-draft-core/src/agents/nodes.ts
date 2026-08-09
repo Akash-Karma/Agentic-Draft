@@ -26,10 +26,25 @@ export const analystNode = async (state: typeof AgentState.State) => {
   };
 };
 
+function buildPreferencesInstructions(prefs: typeof AgentState.State["preferences"]): string {
+  if (!prefs) return "";
+
+  const parts: string[] = [];
+  if (prefs.tone) parts.push(`Tone: ${prefs.tone}.`);
+  if (prefs.length) parts.push(`Length: ${prefs.length}.`);
+  if (prefs.hashtags === false) parts.push(`Do not include hashtags.`);
+  if (prefs.emojiUse) parts.push(`Emoji use: ${prefs.emojiUse}.`);
+  if (prefs.customInstructions) parts.push(`Additional instructions: ${prefs.customInstructions}`);
+
+  if (parts.length === 0) return "";
+  return `\n\nFollow these user preferences strictly:\n${parts.join("\n")}`;
+};
+
 export const writerNode = async (state: typeof AgentState.State) => {
   const m = getModel();
+  const prefsInstructions = buildPreferencesInstructions(state.preferences);
   const response = await m.invoke(
-    `Using this summary: ${state.summary}, create a LinkedIn post.`
+    `Using this summary: ${state.summary}, create a LinkedIn post.${prefsInstructions}`
   );
   return { 
     drafts: { content: response.content as string }, 
@@ -39,8 +54,9 @@ export const writerNode = async (state: typeof AgentState.State) => {
 
 export const criticNode = async (state: typeof AgentState.State) => {
   const m = getModel();
+  const prefsInstructions = buildPreferencesInstructions(state.preferences);
   const response = await m.invoke(
-    `Rate this content from 1 to 10 based on quality. Return only the number: ${state.drafts.content}`
+    `Rate this content from 1 to 10 based on quality${prefsInstructions ? " and how well it follows the user's stated preferences below" : ""}. Return only the number.${prefsInstructions}\n\nContent:\n${state.drafts.content}`
   );
   const score = parseFloat(response.content as string);
   return { 

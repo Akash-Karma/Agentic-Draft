@@ -26,7 +26,7 @@ app.post("/api/draft", requireUser, async (req, res) => {
       }
     });
 
-    await addDraftJob(sourceContent, project.id);
+    await addDraftJob(sourceContent, project.id, userId);
     
     console.log(`📝 Job added to queue for project: ${project.id}`);
 
@@ -43,8 +43,9 @@ app.post("/api/draft", requireUser, async (req, res) => {
 // 2. Endpoint to fetch a single project's details/status
 app.get("/api/project/:id", requireUser, async (req, res) => {
   try {
+    const id = req.params.id as string;
     const project = await prisma.project.findUnique({
-      where: { id: req.params.id }
+      where: { id }
     });
 
     if (!project) {
@@ -69,6 +70,37 @@ app.get("/api/projects", requireUser, async (req, res) => {
     res.json(projects);
   } catch (error) {
     console.error("Fetch Projects Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Get current preferences (returns null if none set yet)
+app.get("/api/preferences", requireUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const prefs = await prisma.userPreferences.findUnique({ where: { userId } });
+    res.json(prefs);
+  } catch (error) {
+    console.error("Fetch Preferences Error:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Create or update preferences
+app.put("/api/preferences", requireUser, async (req, res) => {
+  try {
+    const userId = (req as any).userId;
+    const { tone, length, hashtags, emojiUse, customInstructions } = req.body;
+
+    const prefs = await prisma.userPreferences.upsert({
+      where: { userId },
+      update: { tone, length, hashtags, emojiUse, customInstructions },
+      create: { userId, tone, length, hashtags, emojiUse, customInstructions },
+    });
+
+    res.json(prefs);
+  } catch (error) {
+    console.error("Update Preferences Error:", error);
     res.status(500).json({ error: "Internal server error" });
   }
 });

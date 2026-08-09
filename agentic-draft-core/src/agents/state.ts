@@ -1,5 +1,13 @@
 import { Annotation } from "@langchain/langgraph";
 
+export interface UserPreferences {
+  tone?: string | null;
+  length?: string | null;
+  hashtags?: boolean;
+  emojiUse?: string | null;
+  customInstructions?: string | null;
+}
+
 export const AgentState = Annotation.Root({
   sourceContent: Annotation<string>(),
   summary: Annotation<string>(),
@@ -13,4 +21,8 @@ export const AgentState = Annotation.Root({
     default: () => 0,
   }),
   status: Annotation<string>(),
+  preferences: Annotation<UserPreferences | null>({
+    reducer: (x, y) => y ?? x,
+    default: () => null,
+  }),
 });

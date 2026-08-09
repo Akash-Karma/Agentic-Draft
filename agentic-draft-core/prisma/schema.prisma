@@ -13,6 +13,19 @@ model User {
   apiKey    String    @unique @default(cuid())
   createdAt DateTime  @default(now())
   projects  Project[]
+  preferences UserPreferences?
+}
+
+model UserPreferences {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  user               User     @relation(fields: [userId], references: [id])
+  tone               String?  // e.g. "professional", "casual", "witty"
+  length             String?  // e.g. "short", "medium", "long-form"
+  hashtags           Boolean  @default(true)
+  emojiUse           String?  // "none", "minimal", "frequent"
+  customInstructions String?  @db.Text
+  updatedAt          DateTime @updatedAt
 }
 
 model Project {

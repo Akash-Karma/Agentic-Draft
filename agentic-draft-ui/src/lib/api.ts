@@ -7,6 +7,14 @@ export interface Project {
   createdAt: string;
 }
 
+export interface UserPreferences {
+  tone?: string;
+  length?: string;
+  hashtags?: boolean;
+  emojiUse?: string;
+  customInstructions?: string;
+}
+
 // Simple in-memory store for the API key (resets on page refresh — that's fine for now)
 let apiKey: string | null = null;
 
@@ -51,4 +59,21 @@ export const api = {
     if (!res.ok) throw new Error("Failed to fetch projects");
     return res.json();
   },
+  async getPreferences(): Promise<UserPreferences | null> {
+  const res = await fetch("/api/external/preferences", {
+    headers: authHeaders() as HeadersInit,
+  });
+  if (!res.ok) throw new Error("Failed to fetch preferences");
+  return res.json();
+},
+
+async updatePreferences(prefs: UserPreferences): Promise<UserPreferences> {
+  const res = await fetch("/api/external/preferences", {
+    method: "PUT",
+    headers: { "Content-Type": "application/json", ...authHeaders() } as HeadersInit,
+    body: JSON.stringify(prefs),
+  });
+  if (!res.ok) throw new Error("Failed to update preferences");
+  return res.json();
+},
 };
