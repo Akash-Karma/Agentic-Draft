@@ -29,7 +29,7 @@ export const analystNode = async (state: typeof AgentState.State) => {
 export const writerNode = async (state: typeof AgentState.State) => {
   const m = getModel();
   const response = await m.invoke(
-    `Using this summary: ${state.summary}, create a LinkedIn post and a GitHub README summary.`
+    `Using this summary: ${state.summary}, create a LinkedIn post.`
   );
   return { 
     drafts: { content: response.content as string }, 
