@@ -15,6 +15,10 @@ export const AgentState = Annotation.Root({
     reducer: (x, y) => ({ ...x, ...y }),
     default: () => ({}),
   }),
+  userFeedback: Annotation<string | null>({
+    reducer: (x, y) => y ?? x,
+    default: () => null,
+  }),
   qualityScore: Annotation<number>(),
   iteration: Annotation<number>({
     reducer: (x, y) => y,

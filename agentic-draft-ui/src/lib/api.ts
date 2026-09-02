@@ -1,10 +1,18 @@
+export interface Draft {
+  id: string;
+  content: string;
+  qualityScore: number | null;
+  userFeedback: string | null;
+  createdAt: string;
+}
+
 export interface Project {
   id: string;
   sourceContent: string;
   summary?: string;
-  linkedinPost?: string;
   status: "PROCESSING" | "COMPLETED" | "FAILED";
   createdAt: string;
+  drafts: Draft[];
 }
 
 export interface UserPreferences {
@@ -15,65 +23,107 @@ export interface UserPreferences {
   customInstructions?: string;
 }
 
-// Simple in-memory store for the API key (resets on page refresh — that's fine for now)
-let apiKey: string | null = null;
-
-export function setApiKey(key: string) {
-  apiKey = key;
-}
-
-export function getApiKey() {
-  return apiKey;
-}
-
-function authHeaders(): Record<string, string> {
-  return apiKey ? { "x-api-key": apiKey } : {};
+async function handleResponse(res: Response) {
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ error: "Request failed" }));
+    throw new Error(body.error || "Request failed");
+  }
+  return res.json();
 }
 
 export const api = {
-  // Start a new AI draft
+  async signup(email: string, password: string): Promise<{ message: string }> {
+    const res = await fetch("/api/external/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+    return handleResponse(res);
+  },
+
+  async login(email: string, password: string): Promise<{ message: string }> {
+    const res = await fetch("/api/external/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ email, password }),
+    });
+    return handleResponse(res);
+  },
+
+  async resendVerification(email: string): Promise<{ message: string }> {
+  const res = await fetch("/api/external/resend-verification", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ email }),
+    });
+    return handleResponse(res);
+  },
+  
+  async logout(): Promise<void> {
+    await fetch("/api/external/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+  },
+
+  async verifyEmail(token: string): Promise<{ message: string }> {
+    const res = await fetch(`/api/external/verify?token=${encodeURIComponent(token)}`, {
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
   async createProject(sourceContent: string): Promise<{ projectId: string }> {
     const res = await fetch("/api/external/draft", {
       method: "POST",
-      headers: { "Content-Type": "application/json", ...authHeaders() } as HeadersInit,
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
       body: JSON.stringify({ sourceContent }),
     });
-    if (!res.ok) throw new Error("Failed to start project");
-    return res.json();
+    return handleResponse(res);
   },
 
-  // Get project details/status
   async getProject(id: string): Promise<Project> {
     const res = await fetch(`/api/external/project/${id}`, {
-      headers: authHeaders() as HeadersInit,
+      credentials: "include",
     });
-    if (!res.ok) throw new Error("Project not found");
-    return res.json();
+    return handleResponse(res);
   },
 
-  // Get all of the current user's projects
   async getProjects(): Promise<Project[]> {
     const res = await fetch("/api/external/projects", {
-      headers: authHeaders() as HeadersInit,
+      credentials: "include",
     });
-    if (!res.ok) throw new Error("Failed to fetch projects");
-    return res.json();
+    return handleResponse(res);
   },
-  async getPreferences(): Promise<UserPreferences | null> {
-  const res = await fetch("/api/external/preferences", {
-    headers: authHeaders() as HeadersInit,
-  });
-  if (!res.ok) throw new Error("Failed to fetch preferences");
-  return res.json();
-},
 
-async updatePreferences(prefs: UserPreferences): Promise<UserPreferences> {
-  const res = await fetch("/api/external/preferences", {
-    method: "PUT",
-    headers: { "Content-Type": "application/json", ...authHeaders() } as HeadersInit,
-    body: JSON.stringify(prefs),
-  });
-  if (!res.ok) throw new Error("Failed to update preferences");
-  return res.json();
-},
+  async regenerateProject(id: string, feedback: string): Promise<{ message: string }> {
+    const res = await fetch(`/api/external/project/${id}/regenerate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ feedback }),
+    });
+    return handleResponse(res);
+  },
+
+  async getPreferences(): Promise<UserPreferences | null> {
+    const res = await fetch("/api/external/preferences", {
+      credentials: "include",
+    });
+    return handleResponse(res);
+  },
+
+  async updatePreferences(prefs: UserPreferences): Promise<UserPreferences> {
+    const res = await fetch("/api/external/preferences", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(prefs),
+    });
+    return handleResponse(res);
+  },
 };

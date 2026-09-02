@@ -1,17 +1,18 @@
 import { Request, Response, NextFunction } from "express";
-import { prisma } from "../lib/prisma";
+import { verifyToken } from "../lib/jwt";
 
 export async function requireUser(req: Request, res: Response, next: NextFunction) {
-  const apiKey = req.header("x-api-key");
-  if (!apiKey) {
-    return res.status(401).json({ error: "Missing API key" });
+  const token = req.cookies?.token;
+
+  if (!token) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const user = await prisma.user.findUnique({ where: { apiKey } });
-  if (!user) {
-    return res.status(401).json({ error: "Invalid API key" });
+  const payload = verifyToken(token);
+  if (!payload) {
+    return res.status(401).json({ error: "Invalid or expired session" });
   }
 
-  (req as any).userId = user.id;
+  (req as any).userId = payload.userId;
   next();
 }

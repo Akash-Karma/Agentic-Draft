@@ -1,126 +1,242 @@
 "use client";
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import DraftForm from "@/components/DraftForm";
 import LoginScreen from "@/components/LoginScreen";
-import { api, Project, getApiKey } from "@/lib/api";
-import { Loader2, CheckCircle2, Clock, AlertCircle } from "lucide-react";
-import Link from "next/link";
+import { api, Project } from "@/lib/api";
 
 export default function Dashboard() {
-  const [loggedIn, setLoggedIn] = useState(false);
+  const [loggedIn, setLoggedIn] = useState<boolean | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
+  const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, string>>({});
+  const [selectedVersion, setSelectedVersion] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    api.getProjects()
+      .then((data) => {
+        setProjects(data);
+        setLoggedIn(true);
+      })
+      .catch(() => setLoggedIn(false))
+      .finally(() => setLoading(false));
+  }, []);
 
   const addProjectToList = async (id: string) => {
-    const newProject = await api.getProject(id);
-    setProjects((prev) => [newProject, ...prev]);
+    try {
+      const newProject = await api.getProject(id);
+      setProjects((prev) => [newProject, ...prev]);
+    } catch (err) {
+      console.error("Failed to load newly created project", err);
+    }
   };
 
-  // Fetch existing projects once logged in
   useEffect(() => {
     if (!loggedIn) return;
-    setLoading(true);
-    api.getProjects()
-      .then(setProjects)
-      .catch((err) => console.error("Failed to load projects", err))
-      .finally(() => setLoading(false));
-  }, [loggedIn]);
+    const interval = setInterval(async () => {
+      const processingProjects = projects.filter((p) => p.status === "PROCESSING");
+      if (processingProjects.length === 0) return;
 
-  // Poll for updates on any "PROCESSING" projects
-  useEffect(() => {
-  if (!loggedIn) return;
-  const interval = setInterval(async () => {
-    const processingProjects = projects.filter((p) => p.status === "PROCESSING");
-    if (processingProjects.length === 0) return;
-
-    for (const proj of processingProjects) {
-      try {
-        const updated = await api.getProject(proj.id);
-        if (updated.status !== "PROCESSING") {
-          setProjects((prev) => prev.map((p) => (p.id === proj.id ? updated : p)));
+      for (const proj of processingProjects) {
+        try {
+          const updated = await api.getProject(proj.id);
+          if (updated.status !== "PROCESSING") {
+            setProjects((prev) => prev.map((p) => (p.id === proj.id ? updated : p)));
+          }
+        } catch (err) {
+          console.warn(`Project ${proj.id} no longer exists, removing from list`);
+          setProjects((prev) => prev.filter((p) => p.id !== proj.id));
         }
-      } catch (err) {
-        console.warn(`Project ${proj.id} no longer exists, removing from list`);
-        setProjects((prev) => prev.filter((p) => p.id !== proj.id));
       }
-    }
-  }, 3000);
+    }, 3000);
 
-  return () => clearInterval(interval);
-}, [projects, loggedIn]);
+    return () => clearInterval(interval);
+  }, [projects, loggedIn]);
+
+  const handleRegenerate = async (projectId: string) => {
+    const feedback = feedbackDrafts[projectId] || "";
+    try {
+      await api.regenerateProject(projectId, feedback);
+      setProjects((prev) =>
+        prev.map((p) => (p.id === projectId ? { ...p, status: "PROCESSING" } : p))
+      );
+      setFeedbackDrafts((prev) => ({ ...prev, [projectId]: "" }));
+    } catch (err) {
+      console.error("Failed to regenerate", err);
+    }
+  };
+
+  const handleLogout = async () => {
+    await api.logout();
+    setLoggedIn(false);
+    setProjects([]);
+  };
+
+  if (loggedIn === null) {
+    return (
+      <main className="max-w-sm mx-auto px-8 pt-32 text-center">
+        <p className="text-slate font-mono text-sm">Opening the desk…</p>
+      </main>
+    );
+  }
 
   if (!loggedIn) {
-    return <LoginScreen onLogin={() => setLoggedIn(true)} />;
+    return <LoginScreen onLogin={() => window.location.reload()} />;
   }
 
   return (
-    <main className="max-w-4xl mx-auto p-8 space-y-8">
-      <header className="flex justify-between items-start">
-         <div>
-           <h1 className="text-3xl font-bold text-gray-900">Agentic Draft Dashboard</h1>
-           <p className="text-gray-500">Transform your notes into professional content using AI agents.</p>
-         </div>
-         <Link href="/settings" className="text-sm text-blue-600 hover:underline">
-           Preferences
-         </Link>
+    <main className="max-w-3xl mx-auto px-8 py-10">
+      <header className="flex justify-between items-end border-b-2 border-ink pb-4 mb-8">
+        <div>
+          <p className="font-mono text-[10px] tracking-[0.2em] text-wire uppercase mb-1">
+            Est. Editorial Desk
+          </p>
+          <h1 className="font-display text-3xl font-bold text-ink">Agentic Draft</h1>
+        </div>
+        <div className="text-right space-y-0.5">
+          <Link href="/settings" className="block font-mono text-xs text-slate hover:text-wire underline">
+            preferences
+          </Link>
+          <button
+            onClick={handleLogout}
+            className="font-mono text-xs text-slate hover:text-wire underline"
+          >
+            log out
+          </button>
+        </div>
       </header>
 
       <DraftForm onProjectCreated={addProjectToList} />
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">Recent Projects</h2>
-        {loading && <p className="text-gray-400 italic">Loading projects...</p>}
-        {!loading && projects.length === 0 && (
-          <p className="text-gray-400 italic">No projects yet. Start by pasting content above!</p>
+      <div className="mt-8 space-y-5">
+        {loading && (
+          <p className="font-mono text-sm text-slate">Pulling the archive…</p>
         )}
 
-        {projects.map((project) => (
-          <div key={project.id} className="border rounded-xl p-6 bg-white shadow-sm">
-            <div className="flex justify-between items-start mb-4">
-              <span className="text-xs font-mono text-gray-400">{project.id}</span>
-              <StatusBadge status={project.status} />
-            </div>
+        {!loading && projects.length === 0 && (
+          <div className="bg-white border border-dashed border-paper-dim rounded-sm p-8 text-center">
+            <p className="font-display text-lg font-semibold text-ink mb-1">
+              Open your next desk
+            </p>
+            <p className="font-mono text-xs text-slate">
+              Paste notes, a link, or a transcript to begin.
+            </p>
+          </div>
+        )}
 
-            <div className="space-y-4">
-              <div>
-                <h4 className="text-sm font-bold text-gray-400 uppercase">Source Content</h4>
-                <p className="text-gray-700 line-clamp-2">{project.sourceContent}</p>
-              </div>
+        {projects.map((project) => {
+          const drafts = project.drafts || [];
+          const versionIndex = selectedVersion[project.id] ?? 0;
+          const currentDraft = drafts[versionIndex];
 
-              {project.status === "COMPLETED" && (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t">
-                  <div className="bg-blue-50 p-4 rounded-lg">
-                    <h4 className="text-blue-700 font-bold text-sm mb-2">AI Summary</h4>
-                    <p className="text-gray-800 text-sm">{project.summary}</p>
+          return (
+            <div
+              key={project.id}
+              className="relative bg-white border border-paper-dim rounded-sm p-6"
+            >
+              <Stamp status={project.status} />
+
+              <p className="font-mono text-[10px] text-slate mb-3">
+                PROJECT #{project.id.slice(0, 8)} — filed {formatDate(project.createdAt)}
+              </p>
+
+              <p className="text-ink text-sm mb-4 line-clamp-2">{project.sourceContent}</p>
+
+              {project.status === "COMPLETED" && drafts.length > 0 && (
+                <>
+                  {drafts.length > 1 && (
+                    <div className="flex gap-1.5 flex-wrap mb-4">
+                      {drafts.map((d, i) => (
+                        <button
+                          key={d.id}
+                          onClick={() =>
+                            setSelectedVersion((prev) => ({ ...prev, [project.id]: i }))
+                          }
+                          className={`font-mono text-[11px] px-2.5 py-1 rounded-sm ${
+                            i === versionIndex
+                              ? "bg-ink text-paper"
+                              : "border border-paper-dim text-slate hover:border-wire hover:text-wire"
+                          }`}
+                        >
+                          {i === 0 ? "Edition " + drafts.length + " · latest" : `Edition ${drafts.length - i}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="border-l-[3px] border-wire pl-4 mb-4">
+                    <p className="text-ink text-[15px] leading-relaxed whitespace-pre-wrap">
+                      {currentDraft?.content}
+                    </p>
+                    {currentDraft?.userFeedback && (
+                      <p className="font-mono text-xs text-slate mt-2 italic">
+                        revised from: "{currentDraft.userFeedback}"
+                      </p>
+                    )}
                   </div>
-                  <div className="bg-green-50 p-4 rounded-lg">
-                    <h4 className="text-green-700 font-bold text-sm mb-2">LinkedIn Post</h4>
-                    <p className="text-gray-800 text-sm whitespace-pre-wrap">{project.linkedinPost}</p>
+
+                  <div className="flex justify-between items-center font-mono text-xs text-slate border-t border-paper-dim pt-3 mb-4">
+                    <span>
+                      editor's mark:{" "}
+                      {currentDraft?.qualityScore != null ? (
+                        <span className="text-wire font-semibold">
+                          {currentDraft.qualityScore}/10
+                        </span>
+                      ) : (
+                        "—"
+                      )}
+                    </span>
+                    <span className="text-slate">{project.summary ? "summary on file" : ""}</span>
                   </div>
-                </div>
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="e.g. make it punchier, remove hashtags"
+                      className="flex-1 border border-paper-dim rounded-sm px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-wire focus:border-wire"
+                      value={feedbackDrafts[project.id] || ""}
+                      onChange={(e) =>
+                        setFeedbackDrafts({ ...feedbackDrafts, [project.id]: e.target.value })
+                      }
+                    />
+                    <button
+                      onClick={() => handleRegenerate(project.id)}
+                      className="bg-ink text-paper text-sm font-medium rounded-sm px-4 py-2 whitespace-nowrap hover:bg-black transition-colors"
+                    >
+                      Revise
+                    </button>
+                  </div>
+                </>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </main>
   );
 }
 
-function StatusBadge({ status }: { status: Project["status"] }) {
+function Stamp({ status }: { status: Project["status"] }) {
   const styles = {
-    PROCESSING: "bg-yellow-100 text-yellow-700",
-    COMPLETED: "bg-green-100 text-green-700",
-    FAILED: "bg-red-100 text-red-700",
+    PROCESSING: "border-amber text-amber",
+    COMPLETED: "border-verified text-verified",
+    FAILED: "border-wire text-wire",
   };
-  const icons = {
-    PROCESSING: <Loader2 size={14} className="animate-spin" />,
-    COMPLETED: <CheckCircle2 size={14} />,
-    FAILED: <AlertCircle size={14} />,
+  const labels = {
+    PROCESSING: "PROCESSING",
+    COMPLETED: "COMPLETED",
+    FAILED: "FAILED",
   };
   return (
-    <span className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium ${styles[status]}`}>
-      {icons[status]} {status}
+    <span
+      className={`absolute top-4 right-4 border-2 rounded-sm font-mono text-[11px] font-bold tracking-wide px-2.5 py-1 rotate-3 ${styles[status]}`}
+    >
+      {labels[status]}
     </span>
   );
+}
+
+function formatDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }

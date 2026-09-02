@@ -43,8 +43,11 @@ function buildPreferencesInstructions(prefs: typeof AgentState.State["preference
 export const writerNode = async (state: typeof AgentState.State) => {
   const m = getModel();
   const prefsInstructions = buildPreferencesInstructions(state.preferences);
+  const feedbackNote = state.userFeedback 
+    ? `\n\nThe user reviewed a previous draft and gave this feedback: "${state.userFeedback}". Revise accordingly.` 
+    : "";
   const response = await m.invoke(
-    `Using this summary: ${state.summary}, create a LinkedIn post.${prefsInstructions}`
+    `Using this summary: ${state.summary}, create a LinkedIn post.${prefsInstructions}${feedbackNote}`
   );
   return { 
     drafts: { content: response.content as string }, 
@@ -56,11 +59,24 @@ export const criticNode = async (state: typeof AgentState.State) => {
   const m = getModel();
   const prefsInstructions = buildPreferencesInstructions(state.preferences);
   const response = await m.invoke(
-    `Rate this content from 1 to 10 based on quality${prefsInstructions ? " and how well it follows the user's stated preferences below" : ""}. Return only the number.${prefsInstructions}\n\nContent:\n${state.drafts.content}`
+        `Rate this content from 1 to 10 based on quality${prefsInstructions ? " and how well it follows the user's stated preferences below" : ""}.
+    Respond ONLY with valid JSON in this exact format, no other text: {"score": <number>}
+    ${prefsInstructions}
+
+    Content:
+    ${state.drafts.content}`
   );
-  const score = parseFloat(response.content as string);
+    let score = 0;
+  try {
+    const text = (response.content as string).trim().replace(/```json|```/g, "").trim();
+    const parsed = JSON.parse(text);
+    score = typeof parsed.score === "number" ? parsed.score : (typeof parsed.score === "string" && !isNaN(parseFloat(parsed.score)) ? parseFloat(parsed.score) : 0);
+  } catch (err) {
+    console.error("Failed to parse critic score, defaulting to 0:", response.content);
+  }
+
   return { 
-    qualityScore: isNaN(score) ? 0 : score, 
+    qualityScore: score, 
     status: "Review Complete" 
   };
 };
